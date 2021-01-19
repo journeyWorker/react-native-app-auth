@@ -181,6 +181,46 @@ RCT_REMAP_METHOD(refresh,
 } // end RCT_REMAP_METHOD(refresh,
 
 
+RCT_REMAP_METHOD(endSession,
+                 issuer: (NSString *) issuer
+                 redirectUrl: (NSString *) redirectUrl
+                 idTokenHint: (NSString *) idTokenHint
+                 additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                 serviceConfiguration: (NSDictionary *) serviceConfiguration
+                 useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+                 resolve: (RCTPromiseResolveBlock) resolve
+                 reject: (RCTPromiseRejectBlock)  reject)
+{
+    // if we have manually provided configuration, we can use it and skip the OIDC well-known discovery endpoint call
+    if (serviceConfiguration) {
+        OIDServiceConfiguration *configuration = [self createServiceConfiguration:serviceConfiguration];
+        [self endSessionWithConfiguration: configuration
+                              redirectUrl: redirectUrl
+                              idTokenHint: idTokenHint
+                   useEphemeralWebSession: useEphemeralWebSession
+                     additionalParameters: additionalParameters
+                                  resolve:(RCTPromiseResolveBlock) resolve
+                                   reject: (RCTPromiseRejectBlock)  reject];
+    } else {
+        [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
+                                                            completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
+            if (!configuration) {
+                reject(@"service_configuration_fetch_error", [error localizedDescription], error);
+                return;
+            }
+            
+            [self endSessionWithConfiguration: (OIDServiceConfiguration *)configuration
+                                  redirectUrl: (NSString *) redirectUrl
+                                  idTokenHint: (NSString *) idTokenHint
+                       useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+                         additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                                      resolve:(RCTPromiseResolveBlock) resolve
+                                       reject: (RCTPromiseRejectBlock)  reject];
+            
+        }];
+    }
+} // end RCT_REMAP_METHOD(endSession,
+
 /*
  * Create a OIDServiceConfiguration from passed serviceConfiguration dictionary
  */
@@ -188,13 +228,18 @@ RCT_REMAP_METHOD(refresh,
     NSURL *authorizationEndpoint = [NSURL URLWithString: [serviceConfiguration objectForKey:@"authorizationEndpoint"]];
     NSURL *tokenEndpoint = [NSURL URLWithString: [serviceConfiguration objectForKey:@"tokenEndpoint"]];
     NSURL *registrationEndpoint = [NSURL URLWithString: [serviceConfiguration objectForKey:@"registrationEndpoint"]];
-
+    NSURL *endSessionEndpoint =[NSURL URLWithString: [serviceConfiguration objectForKey:@"endSessionEndpoint"]];
+    NSURL *issuer =[NSURL URLWithString: [serviceConfiguration objectForKey:@"issuer"]];
+    
     OIDServiceConfiguration *configuration =
     [[OIDServiceConfiguration alloc]
      initWithAuthorizationEndpoint:authorizationEndpoint
      tokenEndpoint:tokenEndpoint
-     registrationEndpoint:registrationEndpoint];
-
+     issuer:issuer
+     registrationEndpoint:registrationEndpoint
+     endSessionEndpoint:endSessionEndpoint
+     ];
+    
     return configuration;
 }
 
@@ -395,6 +440,84 @@ RCT_REMAP_METHOD(refresh,
 
 
 /*
+ * endSession a token with provided OIDServiceConfiguration
+ */
+
+- (void)endSessionWithConfiguration: (OIDServiceConfiguration *)configuration
+                        redirectUrl: (NSString *) redirectUrl
+                        idTokenHint: (NSString *) idTokenHint
+             useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+               additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                            resolve:(RCTPromiseResolveBlock) resolve
+                             reject: (RCTPromiseRejectBlock)  reject {
+    
+    
+    OIDEndSessionRequest *request =
+    [[OIDEndSessionRequest alloc] initWithConfiguration:configuration
+                                            idTokenHint:idTokenHint
+                                  postLogoutRedirectURL:[NSURL URLWithString:redirectUrl]
+                                                  state:[[self class] generateState]
+                                   additionalParameters:additionalParameters];
+    
+    
+    
+    // performs authentication request
+    id<UIApplicationDelegate, RNAppAuthAuthorizationFlowManager> appDelegate = (id<UIApplicationDelegate, RNAppAuthAuthorizationFlowManager>)[UIApplication sharedApplication].delegate;
+    if (![[appDelegate class] conformsToProtocol:@protocol(RNAppAuthAuthorizationFlowManager)]) {
+        [NSException raise:@"RNAppAuth Missing protocol conformance"
+                    format:@"%@ does not conform to RNAppAuthAuthorizationFlowManager", appDelegate];
+    }
+    appDelegate.authorizationFlowManagerDelegate = self;
+    __weak typeof(self) weakSelf = self;
+    
+    taskId = [UIApplication.sharedApplication beginBackgroundTaskWithExpirationHandler:^{
+        [UIApplication.sharedApplication endBackgroundTask:taskId];
+        taskId = UIBackgroundTaskInvalid;
+    }];
+    
+    UIViewController *presentingViewController = appDelegate.window.rootViewController.view.window ? appDelegate.window.rootViewController : appDelegate.window.rootViewController.presentedViewController;
+    
+    id<OIDExternalUserAgent> externalUserAgent;
+#if TARGET_OS_MACCATALYST
+    externalUserAgent = [[OIDExternalUserAgentCatalyst alloc]
+                         initWithPresentingViewController:presentingViewController];
+#else // TARGET_OS_MACCATALYST
+    if(useEphemeralWebSession) {
+        externalUserAgent = [[OIDExternalUserAgentEphemeral alloc] initWithPresentingViewController:presentingViewController];
+    } else {
+        externalUserAgent = [[OIDExternalUserAgentIOS alloc] initWithPresentingViewController:presentingViewController];
+    }
+#endif // TARGET_OS_MACCATALYST
+    
+    _currentSession =  [OIDAuthorizationService presentEndSessionRequest:request                                                                        externalUserAgent:externalUserAgent
+                                                                callback:^(OIDEndSessionResponse * _Nullable endSessionResponse, NSError * _Nullable error) {
+        
+        typeof(self) strongSelf = weakSelf;
+        strongSelf->_currentSession = nil;
+        [UIApplication.sharedApplication endBackgroundTask:taskId];
+        taskId = UIBackgroundTaskInvalid;
+        if (endSessionResponse) {
+            resolve([self formatSessionEndResponse:endSessionResponse]);
+        } else {
+            reject([self getErrorCode: error defaultCode:@"session_end_failed"],
+                   [error localizedDescription], error);
+        }
+    }];
+}
+
+
+/*
+ * Take raw OIDAuthorizationResponse and turn it to response format to pass to JavaScript caller
+ */
+- (NSDictionary*)formatSessionEndResponse: (OIDEndSessionResponse*) response {
+    return @{@"state": response.state ? response.state : @"",
+            @"additionalParameters": response.additionalParameters,
+            };
+    
+}
+
+
+/*
  * Take raw OIDAuthorizationResponse and turn it to response format to pass to JavaScript caller
  */
 - (NSDictionary*)formatAuthorizationResponse: (OIDAuthorizationResponse*) response {
@@ -512,6 +635,11 @@ RCT_REMAP_METHOD(refresh,
               return @"invalid_redirect_uri";
             case OIDErrorCodeOAuthRegistrationInvalidClientMetadata:
               return @"invalid_client_metadata";
+        }
+    } else if ([[error domain] isEqualToString:OIDGeneralErrorDomain]) {
+        switch ([error code]) {
+            case OIDErrorCodeUserCanceledAuthorizationFlow:
+                return @"user_canceled";
         }
     }
 

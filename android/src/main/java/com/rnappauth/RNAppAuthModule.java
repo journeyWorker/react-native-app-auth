@@ -24,6 +24,7 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.ReadableType;
 
+import com.rnappauth.utils.EndSessionResponseFactory;
 import com.rnappauth.utils.MapUtil;
 import com.rnappauth.utils.UnsafeConnectionBuilder;
 import com.rnappauth.utils.RegistrationResponseFactory;
@@ -46,6 +47,11 @@ import net.openid.appauth.TokenResponse;
 import net.openid.appauth.TokenRequest;
 import net.openid.appauth.connectivity.ConnectionBuilder;
 import net.openid.appauth.connectivity.DefaultConnectionBuilder;
+
+
+import net.openid.appauth.EndSessionRequest;
+import net.openid.appauth.EndSessionResponse;
+
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,6 +77,7 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
     private String clientSecret;
     private final ConcurrentHashMap<String, AuthorizationServiceConfiguration> mServiceConfigurations = new ConcurrentHashMap<>();
     private boolean isPrefetched = false;
+    private String requestType;
 
     public RNAppAuthModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -236,6 +243,7 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         this.clientSecret = clientSecret;
         this.clientAuthMethod = clientAuthMethod;
         this.skipCodeExchange = skipCodeExchange;
+        this.requestType = "authorize";
 
         // when serviceConfiguration is provided, we don't need to hit up the OpenID well-known id endpoint
         if (serviceConfiguration != null || hasServiceConfiguration(issuer)) {
@@ -373,74 +381,179 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
 
     }
 
+  @ReactMethod
+  public void endSession(
+    String issuer,
+    final String redirectUrl,
+    final String idTokenHint,
+    final ReadableMap additionalParameters,
+    final ReadableMap serviceConfiguration,
+    final String clientAuthMethod,
+    final boolean dangerouslyAllowInsecureHttpRequests,
+    final ReadableMap headers,
+    final Promise promise
+  ) {
+    this.parseHeaderMap(headers);
+    final ConnectionBuilder builder = createConnectionBuilder(dangerouslyAllowInsecureHttpRequests, this.authorizationRequestHeaders);
+    final AppAuthConfiguration appAuthConfiguration = this.createAppAuthConfiguration(builder);
+    final HashMap<String, String> additionalParametersMap = MapUtil.readableMapToHashMap(additionalParameters);
+
+    // store args in private fields for later use in onActivityResult handler
+    this.promise = promise;
+    this.dangerouslyAllowInsecureHttpRequests = dangerouslyAllowInsecureHttpRequests;
+    this.additionalParametersMap = additionalParametersMap;
+    this.clientAuthMethod = clientAuthMethod;
+    this.requestType = "endSession";
+
+    // when serviceConfiguration is provided, we don't need to hit up the OpenID well-known id endpoint
+    if (serviceConfiguration != null || hasServiceConfiguration(issuer)) {
+      try {
+        final AuthorizationServiceConfiguration serviceConfig = hasServiceConfiguration(issuer) ? getServiceConfiguration(issuer) : createAuthorizationServiceConfiguration(serviceConfiguration);
+        endSessionWithConfiguration(
+          serviceConfig,
+          appAuthConfiguration,
+          redirectUrl,
+          idTokenHint,
+          additionalParametersMap
+        );
+      } catch (ActivityNotFoundException e) {
+        promise.reject("browser_not_found", e.getMessage());
+      } catch (Exception e) {
+        promise.reject("endSession_failed", e.getMessage());
+      }
+    } else {
+      final Uri issuerUri = Uri.parse(issuer);
+      AuthorizationServiceConfiguration.fetchFromUrl(
+        buildConfigurationUriFromIssuer(issuerUri),
+        new AuthorizationServiceConfiguration.RetrieveConfigurationCallback() {
+          public void onFetchConfigurationCompleted(
+            @Nullable AuthorizationServiceConfiguration fetchedConfiguration,
+            @Nullable AuthorizationException ex) {
+            if (ex != null) {
+              promise.reject("service_configuration_fetch_error", ex.getLocalizedMessage(), ex);
+              return;
+            }
+            setServiceConfiguration(issuer, fetchedConfiguration);
+            endSessionWithConfiguration(
+              fetchedConfiguration,
+              appAuthConfiguration,
+              redirectUrl,
+              idTokenHint,
+              additionalParametersMap
+            );
+          }
+        },
+        builder
+      );
+    }
+  }
+
     /*
      * Called when the OAuth browser activity completes
      */
     @Override
     public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
-        if (requestCode == 0) {
-            if (data == null) {
-                if (promise != null) {
-                    promise.reject("authentication_error", "Data intent is null" );
-                }
-                return;
-            }
-
-            final AuthorizationResponse response = AuthorizationResponse.fromIntent(data);
-            AuthorizationException exception = AuthorizationException.fromIntent(data);
-            if (exception != null) {
-                if (promise != null) {
-                    promise.reject(exception.error != null ? exception.error: "authentication_error", exception.getLocalizedMessage(), exception);
-                }
-                return;
-            }
-
-            if (this.skipCodeExchange) {
-                WritableMap map = TokenResponseFactory.authorizationResponseToMap(response);
-                if (promise != null) {
-                    promise.resolve(map);
-                }
-                return;
-            }
-
-
-            final Promise authorizePromise = this.promise;
-            final AppAuthConfiguration configuration = createAppAuthConfiguration(
-                    createConnectionBuilder(this.dangerouslyAllowInsecureHttpRequests, this.tokenRequestHeaders)
-            );
-
-            AuthorizationService authService = new AuthorizationService(this.reactContext, configuration);
-
-            TokenRequest tokenRequest = response.createTokenExchangeRequest(this.additionalParametersMap);
-
-            AuthorizationService.TokenResponseCallback tokenResponseCallback = new AuthorizationService.TokenResponseCallback() {
-
-                @Override
-                public void onTokenRequestCompleted(
-                        TokenResponse resp, AuthorizationException ex) {
-                    if (resp != null) {
-                        WritableMap map = TokenResponseFactory.tokenResponseToMap(resp, response);
-                        if (authorizePromise != null) {
-                            authorizePromise.resolve(map);
-                        }
-                    } else {
-                        if (promise != null) {
-                            promise.reject(ex.error != null ? ex.error: "token_exchange_failed", ex.getLocalizedMessage(), ex);
-                        }
-                    }
-                }
-            };
-
-            if (this.clientSecret != null) {
-                ClientAuthentication clientAuth = this.getClientAuthentication(this.clientSecret, this.clientAuthMethod);
-                authService.performTokenRequest(tokenRequest, clientAuth, tokenResponseCallback);
-
-            } else {
-                authService.performTokenRequest(tokenRequest, tokenResponseCallback);
-            }
-
+        if (this.requestType.equals("authorize")) {
+          onAuthorizeRequestActivityResult(activity, requestCode, resultCode, data);
+        }
+        if (this.requestType.equals("endSession")) {
+          onEndSessionRequestActivityResult(activity, requestCode, resultCode, data);
         }
     }
+
+  private void onEndSessionRequestActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+
+    if (requestCode == 0) {
+      if (data == null) {
+        if (promise != null) {
+          promise.reject("endSession_error", "Data intent is null" );
+        }
+        return;
+      }
+
+      final EndSessionResponse response = EndSessionResponse.fromIntent(data);
+      AuthorizationException exception = AuthorizationException.fromIntent(data);
+      if (exception != null) {
+        if (promise != null) {
+          promise.reject(exception.error != null ? exception.error: "endSession_error", exception.getLocalizedMessage(), exception);
+        }
+        return;
+      }
+
+
+      WritableMap map = EndSessionResponseFactory.endSessionResponseToMap(response);
+      if (promise != null) {
+        promise.resolve(map);
+      }
+      return;
+    }
+  }
+
+  private void onAuthorizeRequestActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
+
+    if (requestCode == 0) {
+      if (data == null) {
+        if (promise != null) {
+          promise.reject("authentication_error", "Data intent is null" );
+        }
+        return;
+      }
+
+      final AuthorizationResponse response = AuthorizationResponse.fromIntent(data);
+      AuthorizationException exception = AuthorizationException.fromIntent(data);
+      if (exception != null) {
+        if (promise != null) {
+          promise.reject(exception.error != null ? exception.error: "authentication_error", exception.getLocalizedMessage(), exception);
+        }
+        return;
+      }
+
+      if (this.skipCodeExchange) {
+        WritableMap map = TokenResponseFactory.authorizationResponseToMap(response);
+        if (promise != null) {
+          promise.resolve(map);
+        }
+        return;
+      }
+
+
+      final Promise authorizePromise = this.promise;
+      final AppAuthConfiguration configuration = createAppAuthConfiguration(
+        createConnectionBuilder(this.dangerouslyAllowInsecureHttpRequests, this.tokenRequestHeaders)
+      );
+
+      AuthorizationService authService = new AuthorizationService(this.reactContext, configuration);
+
+      TokenRequest tokenRequest = response.createTokenExchangeRequest(this.additionalParametersMap);
+
+      AuthorizationService.TokenResponseCallback tokenResponseCallback = new AuthorizationService.TokenResponseCallback() {
+
+        @Override
+        public void onTokenRequestCompleted(
+          TokenResponse resp, AuthorizationException ex) {
+          if (resp != null) {
+            WritableMap map = TokenResponseFactory.tokenResponseToMap(resp, response);
+            if (authorizePromise != null) {
+              authorizePromise.resolve(map);
+            }
+          } else {
+            if (promise != null) {
+              promise.reject(ex.error != null ? ex.error: "token_exchange_failed", ex.getLocalizedMessage(), ex);
+            }
+          }
+        }
+      };
+
+      if (this.clientSecret != null) {
+        ClientAuthentication clientAuth = this.getClientAuthentication(this.clientSecret, this.clientAuthMethod);
+        authService.performTokenRequest(tokenRequest, clientAuth, tokenResponseCallback);
+
+      } else {
+        authService.performTokenRequest(tokenRequest, tokenResponseCallback);
+      }
+
+    }
+  }
 
     /*
      * Perform dynamic client registration with the provided configuration
@@ -575,6 +688,43 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
             authService.performAuthorizationRequest(authRequest, pendingIntent);
         }
     }
+
+
+  /*
+   * endSession user with the provided configuration
+   */
+  private void endSessionWithConfiguration(
+    final AuthorizationServiceConfiguration serviceConfiguration,
+    final AppAuthConfiguration appAuthConfiguration,
+    final String redirectUrl,
+    final String idTokenHint,
+    final Map<String, String> additionalParametersMap
+  ) {
+
+    final Context context = this.reactContext;
+    final Activity currentActivity = getCurrentActivity();
+
+    EndSessionRequest.Builder endSessionRequestBuilder =
+      new EndSessionRequest.Builder(
+        serviceConfiguration,
+        idTokenHint,
+        Uri.parse(redirectUrl)
+      );
+
+    EndSessionRequest endSessionRequest = endSessionRequestBuilder.build();
+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+      AuthorizationService authService = new AuthorizationService(context, appAuthConfiguration);
+      Intent authIntent = authService.getEndSessionRequestIntent(endSessionRequest);
+
+      currentActivity.startActivityForResult(authIntent, 0);
+    } else {
+      AuthorizationService authService = new AuthorizationService(currentActivity, appAuthConfiguration);
+      PendingIntent pendingIntent = currentActivity.createPendingResult(0, new Intent(), 0);
+
+      authService.performEndSessionRequest(endSessionRequest, pendingIntent);
+    }
+  }
 
     /*
      * Refresh authentication token with the provided configuration
@@ -754,14 +904,19 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         Uri authorizationEndpoint = Uri.parse(serviceConfiguration.getString("authorizationEndpoint"));
         Uri tokenEndpoint = Uri.parse(serviceConfiguration.getString("tokenEndpoint"));
         Uri registrationEndpoint = null;
+        Uri endSessionEndpoint = null;
         if (serviceConfiguration.hasKey("registrationEndpoint")) {
             registrationEndpoint = Uri.parse(serviceConfiguration.getString("registrationEndpoint"));
         }
+      if (serviceConfiguration.hasKey("endSessionEndpoint")) {
+        endSessionEndpoint = Uri.parse(serviceConfiguration.getString("endSessionEndpoint"));
+      }
 
         return new AuthorizationServiceConfiguration(
                 authorizationEndpoint,
                 tokenEndpoint,
-                registrationEndpoint
+                registrationEndpoint,
+                endSessionEndpoint
         );
     }
 
