@@ -150,6 +150,7 @@ export const authorize = ({
   scopes,
   useNonce = true,
   usePKCE = true,
+  useEphemeralWebSession = false,
   additionalParameters,
   serviceConfiguration,
   clientAuthMethod = 'basic',
@@ -184,6 +185,7 @@ export const authorize = ({
   if (Platform.OS === 'ios') {
     nativeMethodArguments.push(useNonce);
     nativeMethodArguments.push(usePKCE);
+    nativeMethodArguments.push(useEphemeralWebSession);
   }
 
   return RNAppAuth.authorize(...nativeMethodArguments);

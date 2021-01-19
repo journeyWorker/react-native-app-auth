@@ -8,6 +8,8 @@
 #import <React/RCTConvert.h>
 #import "RNAppAuthAuthorizationFlowManager.h"
 
+#import "OIDExternalUserAgentEphemeral.h"
+
 @interface RNAppAuth()<RNAppAuthAuthorizationFlowManagerDelegate> {
     id<OIDExternalUserAgentSession> _currentSession;
 }
@@ -91,6 +93,7 @@ RCT_REMAP_METHOD(authorize,
                  skipCodeExchange: (BOOL) skipCodeExchange
                  useNonce: (BOOL *) useNonce
                  usePKCE: (BOOL *) usePKCE
+                 useEphemeralWebSession: (BOOL *) useEphemeralWebSession
                  resolve: (RCTPromiseResolveBlock) resolve
                  reject: (RCTPromiseRejectBlock)  reject)
 {
@@ -104,6 +107,7 @@ RCT_REMAP_METHOD(authorize,
                                   scopes: scopes
                                 useNonce: useNonce
                                  usePKCE: usePKCE
+                  useEphemeralWebSession: useEphemeralWebSession
                     additionalParameters: additionalParameters
                     skipCodeExchange: skipCodeExchange
                                  resolve: resolve
@@ -111,22 +115,23 @@ RCT_REMAP_METHOD(authorize,
     } else {
         [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
                                                             completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
-                                                                if (!configuration) {
-                                                                    reject(@"service_configuration_fetch_error", [error localizedDescription], error);
-                                                                    return;
-                                                                }
-                                                                [self authorizeWithConfiguration: configuration
-                                                                                     redirectUrl: redirectUrl
-                                                                                        clientId: clientId
-                                                                                    clientSecret: clientSecret
-                                                                                          scopes: scopes
-                                                                                        useNonce: useNonce
-                                                                                         usePKCE: usePKCE
-                                                                            additionalParameters: additionalParameters
-                                                                                skipCodeExchange: skipCodeExchange
-                                                                                         resolve: resolve
-                                                                                          reject: reject];
-                                                            }];
+            if (!configuration) {
+                reject(@"service_configuration_fetch_error", [error localizedDescription], error);
+                return;
+            }
+            [self authorizeWithConfiguration: configuration
+                                 redirectUrl: redirectUrl
+                                    clientId: clientId
+                                clientSecret: clientSecret
+                                      scopes: scopes
+                                    useNonce: useNonce
+                                     usePKCE: usePKCE
+                      useEphemeralWebSession: useEphemeralWebSession
+                        additionalParameters: additionalParameters
+                            skipCodeExchange: skipCodeExchange
+                                     resolve: resolve
+                                      reject: reject];
+        }];
     }
 } // end RCT_REMAP_METHOD(authorize,
 
@@ -262,6 +267,7 @@ RCT_REMAP_METHOD(refresh,
                             scopes: (NSArray *) scopes
                           useNonce: (BOOL *) useNonce
                            usePKCE: (BOOL *) usePKCE
+            useEphemeralWebSession: (BOOL *) useEphemeralWebSession
               additionalParameters: (NSDictionary *_Nullable) additionalParameters
               skipCodeExchange: (BOOL) skipCodeExchange
                            resolve: (RCTPromiseResolveBlock) resolve
@@ -319,21 +325,34 @@ RCT_REMAP_METHOD(refresh,
                                                        }
                                                    }]; // end [OIDAuthState presentAuthorizationRequest:request
     } else {
+        
+        id<OIDExternalUserAgent> externalUserAgent;
+#if TARGET_OS_MACCATALYST
+        externalUserAgent = [[OIDExternalUserAgentCatalyst alloc]
+                             initWithPresentingViewController:presentingViewController];
+#else // TARGET_OS_MACCATALYST
+        if(useEphemeralWebSession) {
+            externalUserAgent = [[OIDExternalUserAgentEphemeral alloc] initWithPresentingViewController:presentingViewController];
+        } else {
+            externalUserAgent = [[OIDExternalUserAgentIOS alloc] initWithPresentingViewController:presentingViewController];
+        }
+#endif // TARGET_OS_MACCATALYST
         _currentSession = [OIDAuthState authStateByPresentingAuthorizationRequest:request
-                                presentingViewController:presentingViewController
-                                                callback:^(OIDAuthState *_Nullable authState,
-                                                            NSError *_Nullable error) {
-                                                    typeof(self) strongSelf = weakSelf;
-                                                    strongSelf->_currentSession = nil;
-                                                    [UIApplication.sharedApplication endBackgroundTask:taskId];
-                                                    taskId = UIBackgroundTaskInvalid;
-                                                    if (authState) {
-                                                        resolve([self formatResponse:authState.lastTokenResponse
-                                                            withAuthResponse:authState.lastAuthorizationResponse]);
-                                                    } else {
-                                                        reject(@"authentication_failed", [error localizedDescription], error);
-                                                    }
-                                                }]; // end [OIDAuthState authStateByPresentingAuthorizationRequest:request
+                                                                externalUserAgent:externalUserAgent
+                                                                         callback:^(OIDAuthState *_Nullable authState,
+                                                                                    NSError *_Nullable error) {
+            typeof(self) strongSelf = weakSelf;
+            strongSelf->_currentSession = nil;
+            [UIApplication.sharedApplication endBackgroundTask:taskId];
+            taskId = UIBackgroundTaskInvalid;
+            if (authState) {
+                resolve([self formatResponse:authState.lastTokenResponse
+                            withAuthResponse:authState.lastAuthorizationResponse]);
+            } else {
+                reject([self getErrorCode: error defaultCode:@"authentication_failed"],
+                       [error localizedDescription], error);
+            }
+        }]; // end [OIDAuthState authStateByPresentingAuthorizationRequest:request
     }
 }
 
