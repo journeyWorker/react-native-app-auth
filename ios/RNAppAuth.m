@@ -8,6 +8,8 @@
 #import <React/RCTConvert.h>
 #import "RNAppAuthAuthorizationFlowManager.h"
 
+#import "OIDExternalUserAgentEphemeral.h"
+
 @interface RNAppAuth()<RNAppAuthAuthorizationFlowManagerDelegate> {
     id<OIDExternalUserAgentSession> _currentSession;
 }
@@ -63,20 +65,20 @@ RCT_REMAP_METHOD(register,
     } else {
         [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
                                                             completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
-                                                                if (!configuration) {
-                                                                    reject(@"service_configuration_fetch_error", [error localizedDescription], error);
-                                                                    return;
-                                                                }
-                                                                [self registerWithConfiguration: configuration
-                                                                                   redirectUrls: redirectUrls
-                                                                                  responseTypes: responseTypes
-                                                                                     grantTypes: grantTypes
-                                                                                    subjectType: subjectType
-                                                                        tokenEndpointAuthMethod: tokenEndpointAuthMethod
-                                                                           additionalParameters: additionalParameters
-                                                                                        resolve: resolve
-                                                                                         reject: reject];
-                                                            }];
+            if (!configuration) {
+                reject(@"service_configuration_fetch_error", [error localizedDescription], error);
+                return;
+            }
+            [self registerWithConfiguration: configuration
+                               redirectUrls: redirectUrls
+                              responseTypes: responseTypes
+                                 grantTypes: grantTypes
+                                subjectType: subjectType
+                    tokenEndpointAuthMethod: tokenEndpointAuthMethod
+                       additionalParameters: additionalParameters
+                                    resolve: resolve
+                                     reject: reject];
+        }];
     }
 } // end RCT_REMAP_METHOD(register,
 
@@ -105,28 +107,28 @@ RCT_REMAP_METHOD(authorize,
                                 useNonce: useNonce
                                  usePKCE: usePKCE
                     additionalParameters: additionalParameters
-                    skipCodeExchange: skipCodeExchange
+                        skipCodeExchange: skipCodeExchange
                                  resolve: resolve
                                   reject: reject];
     } else {
         [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
                                                             completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
-                                                                if (!configuration) {
-                                                                    reject(@"service_configuration_fetch_error", [error localizedDescription], error);
-                                                                    return;
-                                                                }
-                                                                [self authorizeWithConfiguration: configuration
-                                                                                     redirectUrl: redirectUrl
-                                                                                        clientId: clientId
-                                                                                    clientSecret: clientSecret
-                                                                                          scopes: scopes
-                                                                                        useNonce: useNonce
-                                                                                         usePKCE: usePKCE
-                                                                            additionalParameters: additionalParameters
-                                                                                skipCodeExchange: skipCodeExchange
-                                                                                         resolve: resolve
-                                                                                          reject: reject];
-                                                            }];
+            if (!configuration) {
+                reject(@"service_configuration_fetch_error", [error localizedDescription], error);
+                return;
+            }
+            [self authorizeWithConfiguration: configuration
+                                 redirectUrl: redirectUrl
+                                    clientId: clientId
+                                clientSecret: clientSecret
+                                      scopes: scopes
+                                    useNonce: useNonce
+                                     usePKCE: usePKCE
+                        additionalParameters: additionalParameters
+                            skipCodeExchange: skipCodeExchange
+                                     resolve: resolve
+                                      reject: reject];
+        }];
     }
 } // end RCT_REMAP_METHOD(authorize,
 
@@ -158,23 +160,60 @@ RCT_REMAP_METHOD(refresh,
         // otherwise hit up the discovery endpoint
         [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
                                                             completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
-                                                                if (!configuration) {
-                                                                    reject(@"service_configuration_fetch_error", [error localizedDescription], error);
-                                                                    return;
-                                                                }
-                                                                [self refreshWithConfiguration: configuration
-                                                                                   redirectUrl: redirectUrl
-                                                                                      clientId: clientId
-                                                                                  clientSecret: clientSecret
-                                                                                  refreshToken: refreshToken
-                                                                                        scopes: scopes
-                                                                          additionalParameters: additionalParameters
-                                                                                       resolve: resolve
-                                                                                        reject: reject];
-                                                            }];
+            if (!configuration) {
+                reject(@"service_configuration_fetch_error", [error localizedDescription], error);
+                return;
+            }
+            [self refreshWithConfiguration: configuration
+                               redirectUrl: redirectUrl
+                                  clientId: clientId
+                              clientSecret: clientSecret
+                              refreshToken: refreshToken
+                                    scopes: scopes
+                      additionalParameters: additionalParameters
+                                   resolve: resolve
+                                    reject: reject];
+        }];
     }
 } // end RCT_REMAP_METHOD(refresh,
 
+
+RCT_REMAP_METHOD(logout,
+                  issuer: (NSString *) issuer
+                  redirectUrl: (NSString *) redirectUrl
+                  idTokenHint: (NSString *) idTokenHint
+                 additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                 serviceConfiguration: (NSDictionary *) serviceConfiguration
+                 resolve: (RCTPromiseResolveBlock) resolve
+                 reject: (RCTPromiseRejectBlock)  reject)
+{
+    // if we have manually provided configuration, we can use it and skip the OIDC well-known discovery endpoint call
+    if (serviceConfiguration) {
+        OIDServiceConfiguration *configuration = [self createServiceConfiguration:serviceConfiguration];
+        [self logoutWithConfiguration: (OIDServiceConfiguration *)configuration
+                          redirectUrl: (NSString *) redirectUrl
+                          idTokenHint: (NSString *) idTokenHint
+                 additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                              resolve:(RCTPromiseResolveBlock) resolve
+                               reject: (RCTPromiseRejectBlock)  reject];
+    } else {
+        [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
+                                                            completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
+            if (!configuration) {
+                reject(@"service_configuration_fetch_error", [error localizedDescription], error);
+                return;
+            }
+
+            [self logoutWithConfiguration: (OIDServiceConfiguration *)configuration
+                              redirectUrl: (NSString *) redirectUrl
+                              idTokenHint: (NSString *) idTokenHint
+                     additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                                  resolve:(RCTPromiseResolveBlock) resolve
+                                   reject: (RCTPromiseRejectBlock)  reject];
+
+        }];
+    }
+} // end RCT_REMAP_METHOD(logout,
 
 /*
  * Create a OIDServiceConfiguration from passed serviceConfiguration dictionary
@@ -183,33 +222,38 @@ RCT_REMAP_METHOD(refresh,
     NSURL *authorizationEndpoint = [NSURL URLWithString: [serviceConfiguration objectForKey:@"authorizationEndpoint"]];
     NSURL *tokenEndpoint = [NSURL URLWithString: [serviceConfiguration objectForKey:@"tokenEndpoint"]];
     NSURL *registrationEndpoint = [NSURL URLWithString: [serviceConfiguration objectForKey:@"registrationEndpoint"]];
+    NSURL *endSessionEndpoint =[NSURL URLWithString: [serviceConfiguration objectForKey:@"endSessionEndpoint"]];
+    NSURL *issuer =[NSURL URLWithString: [serviceConfiguration objectForKey:@"issuer"]];
 
     OIDServiceConfiguration *configuration =
     [[OIDServiceConfiguration alloc]
      initWithAuthorizationEndpoint:authorizationEndpoint
      tokenEndpoint:tokenEndpoint
-     registrationEndpoint:registrationEndpoint];
+     issuer:issuer
+     registrationEndpoint:registrationEndpoint
+     endSessionEndpoint:endSessionEndpoint
+     ];
 
     return configuration;
 }
 
 + (nullable NSString *)generateCodeVerifier {
-  return [OIDTokenUtilities randomURLSafeStringWithSize:kCodeVerifierBytes];
+    return [OIDTokenUtilities randomURLSafeStringWithSize:kCodeVerifierBytes];
 }
 
 + (nullable NSString *)generateState {
-  return [OIDTokenUtilities randomURLSafeStringWithSize:kStateSizeBytes];
+    return [OIDTokenUtilities randomURLSafeStringWithSize:kStateSizeBytes];
 }
 
 + (nullable NSString *)codeChallengeS256ForVerifier:(NSString *)codeVerifier {
-  if (!codeVerifier) {
-    return nil;
-  }
-  // generates the code_challenge per spec https://tools.ietf.org/html/rfc7636#section-4.2
-  // code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))
-  // NB. the ASCII conversion on the code_verifier entropy was done at time of generation.
+    if (!codeVerifier) {
+        return nil;
+    }
+    // generates the code_challenge per spec https://tools.ietf.org/html/rfc7636#section-4.2
+    // code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))
+    // NB. the ASCII conversion on the code_verifier entropy was done at time of generation.
     NSData *sha256Verifier = [OIDTokenUtilities sha256:codeVerifier];
-  return [OIDTokenUtilities encodeBase64urlNoPadding:sha256Verifier];
+    return [OIDTokenUtilities encodeBase64urlNoPadding:sha256Verifier];
 }
 
     
@@ -243,13 +287,13 @@ RCT_REMAP_METHOD(refresh,
     [OIDAuthorizationService performRegistrationRequest:request
                                              completion:^(OIDRegistrationResponse *_Nullable response,
                                                           NSError *_Nullable error) {
-                                                 if (response) {
-                                                     resolve([self formatRegistrationResponse:response]);
-                                                 } else {
-                                                     reject([self getErrorCode: error defaultCode:@"registration_failed"],
-                                                            [error localizedDescription], error);
-                                                 }
-                                            }];
+        if (response) {
+            resolve([self formatRegistrationResponse:response]);
+        } else {
+            reject([self getErrorCode: error defaultCode:@"registration_failed"],
+                   [error localizedDescription], error);
+        }
+    }];
 }
     
 /*
@@ -263,7 +307,7 @@ RCT_REMAP_METHOD(refresh,
                           useNonce: (BOOL *) useNonce
                            usePKCE: (BOOL *) usePKCE
               additionalParameters: (NSDictionary *_Nullable) additionalParameters
-              skipCodeExchange: (BOOL) skipCodeExchange
+                  skipCodeExchange: (BOOL) skipCodeExchange
                            resolve: (RCTPromiseResolveBlock) resolve
                             reject: (RCTPromiseRejectBlock)  reject
 {
@@ -284,7 +328,7 @@ RCT_REMAP_METHOD(refresh,
                                                      nonce:nonce
                                               codeVerifier:codeVerifier
                                              codeChallenge:codeChallenge
-                                      codeChallengeMethod: usePKCE ? OIDOAuthorizationRequestCodeChallengeMethodS256 : nil
+                                       codeChallengeMethod: usePKCE ? OIDOAuthorizationRequestCodeChallengeMethodS256 : nil
                                       additionalParameters:additionalParameters];
 
     // performs authentication request
@@ -305,35 +349,48 @@ RCT_REMAP_METHOD(refresh,
 
     if (skipCodeExchange) {
         _currentSession = [OIDAuthorizationService presentAuthorizationRequest:request
-                                   presentingViewController:presentingViewController
-                                                    callback:^(OIDAuthorizationResponse *_Nullable authorizationResponse, NSError *_Nullable error) {
-                                                       typeof(self) strongSelf = weakSelf;
-                                                       strongSelf->_currentSession = nil;
-                                                       [UIApplication.sharedApplication endBackgroundTask:taskId];
-                                                       taskId = UIBackgroundTaskInvalid;
-                                                       if (authorizationResponse) {
-                                                           resolve([self formatAuthorizationResponse:authorizationResponse]);
-                                                       } else {
-                                                           reject([self getErrorCode: error defaultCode:@"authentication_failed"],
-                                                                  [error localizedDescription], error);
-                                                       }
-                                                   }]; // end [OIDAuthState presentAuthorizationRequest:request
+                                                      presentingViewController:presentingViewController
+                                                                      callback:^(OIDAuthorizationResponse *_Nullable authorizationResponse, NSError *_Nullable error) {
+            typeof(self) strongSelf = weakSelf;
+            strongSelf->_currentSession = nil;
+            [UIApplication.sharedApplication endBackgroundTask:taskId];
+            taskId = UIBackgroundTaskInvalid;
+            if (authorizationResponse) {
+                resolve([self formatAuthorizationResponse:authorizationResponse]);
+            } else {
+                reject([self getErrorCode: error defaultCode:@"authentication_failed"],
+                       [error localizedDescription], error);
+            }
+        }]; // end [OIDAuthState presentAuthorizationRequest:request
     } else {
+
+        id<OIDExternalUserAgent> externalUserAgent;
+    #if TARGET_OS_MACCATALYST
+        externalUserAgent = [[OIDExternalUserAgentCatalyst alloc]
+                             initWithPresentingViewController:presentingViewController];
+    #else // TARGET_OS_MACCATALYST
+        externalUserAgent = [[OIDExternalUserAgentEphemeral alloc] initWithPresentingViewController:presentingViewController];
+    #endif // TARGET_OS_MACCATALYST
+
         _currentSession = [OIDAuthState authStateByPresentingAuthorizationRequest:request
-                                presentingViewController:presentingViewController
-                                                callback:^(OIDAuthState *_Nullable authState,
-                                                            NSError *_Nullable error) {
-                                                    typeof(self) strongSelf = weakSelf;
-                                                    strongSelf->_currentSession = nil;
-                                                    [UIApplication.sharedApplication endBackgroundTask:taskId];
-                                                    taskId = UIBackgroundTaskInvalid;
-                                                    if (authState) {
-                                                        resolve([self formatResponse:authState.lastTokenResponse
-                                                            withAuthResponse:authState.lastAuthorizationResponse]);
-                                                    } else {
-                                                        reject(@"authentication_failed", [error localizedDescription], error);
-                                                    }
-                                                }]; // end [OIDAuthState authStateByPresentingAuthorizationRequest:request
+                                                                externalUserAgent:externalUserAgent
+                                                                         callback:^(OIDAuthState *_Nullable authState,
+                                                                                    NSError *_Nullable error) {
+            typeof(self) strongSelf = weakSelf;
+            strongSelf->_currentSession = nil;
+            [UIApplication.sharedApplication endBackgroundTask:taskId];
+            taskId = UIBackgroundTaskInvalid;
+            if (authState) {
+                
+                
+                
+                resolve([self formatResponse:authState.lastTokenResponse
+                            withAuthResponse:authState.lastAuthorizationResponse]);
+            } else {
+                reject([self getErrorCode: error defaultCode:@"authentication_failed"],
+                       [error localizedDescription], error);
+            }
+        }]; // end [OIDAuthState authStateByPresentingAuthorizationRequest:request
     }
 }
 
@@ -365,13 +422,88 @@ RCT_REMAP_METHOD(refresh,
     [OIDAuthorizationService performTokenRequest:tokenRefreshRequest
                                         callback:^(OIDTokenResponse *_Nullable response,
                                                    NSError *_Nullable error) {
-                                            if (response) {
-                                                resolve([self formatResponse:response]);
-                                            } else {
-                                                reject([self getErrorCode: error defaultCode:@"token_refresh_failed"],
-                                                       [error localizedDescription], error);
-                                            }
-                                        }];
+        if (response) {
+            resolve([self formatResponse:response]);
+        } else {
+            reject([self getErrorCode: error defaultCode:@"token_refresh_failed"],
+                   [error localizedDescription], error);
+        }
+    }];
+}
+
+
+/*
+ * logout a token with provided OIDServiceConfiguration
+ */
+
+- (void)logoutWithConfiguration: (OIDServiceConfiguration *)configuration
+                    redirectUrl: (NSString *) redirectUrl
+                    idTokenHint: (NSString *) idTokenHint
+           additionalParameters: (NSDictionary *_Nullable) additionalParameters
+                        resolve:(RCTPromiseResolveBlock) resolve
+                         reject: (RCTPromiseRejectBlock)  reject {
+
+
+    OIDEndSessionRequest *request =
+    [[OIDEndSessionRequest alloc] initWithConfiguration:configuration
+                                            idTokenHint:idTokenHint
+                                  postLogoutRedirectURL:[NSURL URLWithString:redirectUrl]
+                                                  state:[[self class] generateState]
+                                   additionalParameters:additionalParameters];
+
+
+
+    // performs authentication request
+    id<UIApplicationDelegate, RNAppAuthAuthorizationFlowManager> appDelegate = (id<UIApplicationDelegate, RNAppAuthAuthorizationFlowManager>)[UIApplication sharedApplication].delegate;
+    if (![[appDelegate class] conformsToProtocol:@protocol(RNAppAuthAuthorizationFlowManager)]) {
+        [NSException raise:@"RNAppAuth Missing protocol conformance"
+                    format:@"%@ does not conform to RNAppAuthAuthorizationFlowManager", appDelegate];
+    }
+    appDelegate.authorizationFlowManagerDelegate = self;
+    __weak typeof(self) weakSelf = self;
+
+    taskId = [UIApplication.sharedApplication beginBackgroundTaskWithExpirationHandler:^{
+        [UIApplication.sharedApplication endBackgroundTask:taskId];
+        taskId = UIBackgroundTaskInvalid;
+    }];
+
+    UIViewController *presentingViewController = appDelegate.window.rootViewController.view.window ? appDelegate.window.rootViewController : appDelegate.window.rootViewController.presentedViewController;
+
+    id<OIDExternalUserAgent> externalUserAgent;
+#if TARGET_OS_MACCATALYST
+    externalUserAgent = [[OIDExternalUserAgentCatalyst alloc]
+                         initWithPresentingViewController:presentingViewController];
+#else // TARGET_OS_MACCATALYST
+    externalUserAgent = [[OIDExternalUserAgentEphemeral alloc] initWithPresentingViewController:presentingViewController];
+#endif // TARGET_OS_MACCATALYST
+
+    _currentSession =  [OIDAuthorizationService presentEndSessionRequest:request                                                                        externalUserAgent:externalUserAgent
+                                             callback:^(OIDEndSessionResponse * _Nullable endSessionResponse, NSError * _Nullable error) {
+
+        typeof(self) strongSelf = weakSelf;
+        strongSelf->_currentSession = nil;
+        [UIApplication.sharedApplication endBackgroundTask:taskId];
+        taskId = UIBackgroundTaskInvalid;
+        if (endSessionResponse) {
+            resolve([self formatSessionEndResponse:endSessionResponse]);
+        } else {
+            reject([self getErrorCode: error defaultCode:@"session_end_failed"],
+                   [error localizedDescription], error);
+        }
+    }];
+}
+
+
+/*
+ * Take raw OIDAuthorizationResponse and turn it to response format to pass to JavaScript caller
+ */
+- (NSDictionary*)formatSessionEndResponse: (OIDEndSessionResponse*) response {
+    
+    return @{
+        @"state": response.state ? response.state : @"",
+        @"additionalParameters": response.additionalParameters,
+    };
+
 }
 
 
@@ -385,14 +517,14 @@ RCT_REMAP_METHOD(refresh,
     [dateFormat setDateFormat:@"yyyy-MM-dd'T'HH:mm:ss'Z'"];
 
     return @{@"authorizationCode": response.authorizationCode ? response.authorizationCode : @"",
-            @"state": response.state ? response.state : @"",
-            @"accessToken": response.accessToken ? response.accessToken : @"",
-            @"accessTokenExpirationDate": response.accessTokenExpirationDate ? [dateFormat stringFromDate:response.accessTokenExpirationDate] : @"",
-            @"tokenType": response.tokenType ? response.tokenType : @"",
-            @"idToken": response.idToken ? response.idToken : @"",
-            @"scopes": response.scope ? [response.scope componentsSeparatedByString:@" "] : [NSArray new],
-            @"additionalParameters": response.additionalParameters,
-            };
+             @"state": response.state ? response.state : @"",
+             @"accessToken": response.accessToken ? response.accessToken : @"",
+             @"accessTokenExpirationDate": response.accessTokenExpirationDate ? [dateFormat stringFromDate:response.accessTokenExpirationDate] : @"",
+             @"tokenType": response.tokenType ? response.tokenType : @"",
+             @"idToken": response.idToken ? response.idToken : @"",
+             @"scopes": response.scope ? [response.scope componentsSeparatedByString:@" "] : [NSArray new],
+             @"additionalParameters": response.additionalParameters,
+    };
 }
 
 /*
@@ -410,7 +542,7 @@ RCT_REMAP_METHOD(refresh,
              @"idToken": response.idToken ? response.idToken : @"",
              @"refreshToken": response.refreshToken ? response.refreshToken : @"",
              @"tokenType": response.tokenType ? response.tokenType : @"",
-             };
+    };
 }
 
 /*
@@ -418,7 +550,7 @@ RCT_REMAP_METHOD(refresh,
  *  and turn them into an extended token response format to pass to JavaScript caller
  */
 - (NSDictionary*)formatResponse: (OIDTokenResponse*) response
-       withAuthResponse:(OIDAuthorizationResponse*) authResponse {
+               withAuthResponse:(OIDAuthorizationResponse*) authResponse {
     NSDateFormatter *dateFormat = [[NSDateFormatter alloc] init];
     dateFormat.timeZone = [NSTimeZone timeZoneWithAbbreviation: @"UTC"];
     [dateFormat setLocale:[NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"]];
@@ -432,7 +564,7 @@ RCT_REMAP_METHOD(refresh,
              @"refreshToken": response.refreshToken ? response.refreshToken : @"",
              @"tokenType": response.tokenType ? response.tokenType : @"",
              @"scopes": authResponse.scope ? [authResponse.scope componentsSeparatedByString:@" "] : [NSArray new],
-             };
+    };
 }
     
 - (NSDictionary*)formatRegistrationResponse: (OIDRegistrationResponse*) response {
@@ -449,50 +581,55 @@ RCT_REMAP_METHOD(refresh,
              @"registrationAccessToken": response.registrationAccessToken ? response.registrationAccessToken : @"",
              @"registrationClientUri": response.registrationClientURI ? response.registrationClientURI : @"",
              @"tokenEndpointAuthMethod": response.tokenEndpointAuthenticationMethod ? response.tokenEndpointAuthenticationMethod : @"",
-             };
+    };
 }
 
 - (NSString*)getErrorCode: (NSError*) error defaultCode: (NSString *) defaultCode {
     if ([[error domain] isEqualToString:OIDOAuthAuthorizationErrorDomain]) {
         switch ([error code]) {
             case OIDErrorCodeOAuthAuthorizationInvalidRequest:
-              return @"invalid_request";
+                return @"invalid_request";
             case OIDErrorCodeOAuthAuthorizationUnauthorizedClient:
-              return @"unauthorized_client";
+                return @"unauthorized_client";
             case OIDErrorCodeOAuthAuthorizationAccessDenied:
-              return @"access_denied";
+                return @"access_denied";
             case OIDErrorCodeOAuthAuthorizationUnsupportedResponseType:
-              return @"unsupported_response_type";
+                return @"unsupported_response_type";
             case OIDErrorCodeOAuthAuthorizationAuthorizationInvalidScope:
-              return @"invalid_scope";
+                return @"invalid_scope";
             case OIDErrorCodeOAuthAuthorizationServerError:
-              return @"server_error";
+                return @"server_error";
             case OIDErrorCodeOAuthAuthorizationTemporarilyUnavailable:
-              return @"temporarily_unavailable";
+                return @"temporarily_unavailable";
         }
     } else if ([[error domain] isEqualToString:OIDOAuthTokenErrorDomain]) {
         switch ([error code]) {
             case OIDErrorCodeOAuthTokenInvalidRequest:
-              return @"invalid_request";
+                return @"invalid_request";
             case OIDErrorCodeOAuthTokenInvalidClient:
-              return @"invalid_client";
+                return @"invalid_client";
             case OIDErrorCodeOAuthTokenInvalidGrant:
-              return @"invalid_grant";
+                return @"invalid_grant";
             case OIDErrorCodeOAuthTokenUnauthorizedClient:
-              return @"unauthorized_client";
+                return @"unauthorized_client";
             case OIDErrorCodeOAuthTokenUnsupportedGrantType:
-              return @"unsupported_grant_type";
+                return @"unsupported_grant_type";
             case OIDErrorCodeOAuthTokenInvalidScope:
-              return @"invalid_scope";
+                return @"invalid_scope";
         }
     } else if ([[error domain] isEqualToString:OIDOAuthRegistrationErrorDomain]) {
         switch ([error code]) {
             case OIDErrorCodeOAuthRegistrationInvalidRequest:
-              return @"invalid_request";
+                return @"invalid_request";
             case OIDErrorCodeOAuthRegistrationInvalidRedirectURI:
-              return @"invalid_redirect_uri";
+                return @"invalid_redirect_uri";
             case OIDErrorCodeOAuthRegistrationInvalidClientMetadata:
-              return @"invalid_client_metadata";
+                return @"invalid_client_metadata";
+        }
+    } else if ([[error domain] isEqualToString:OIDGeneralErrorDomain]) {
+        switch ([error code]) {
+            case OIDErrorCodeUserCanceledAuthorizationFlow:
+                return @"user_canceled";
         }
     }
 

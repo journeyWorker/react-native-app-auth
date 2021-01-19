@@ -3,6 +3,7 @@ export interface ServiceConfiguration {
   tokenEndpoint: string;
   revocationEndpoint?: string;
   registrationEndpoint?: string;
+  sessionEndEndpoint?: string;
 }
 
 export type BaseConfiguration =
@@ -106,6 +107,20 @@ export interface RefreshConfiguration {
   refreshToken: string;
 }
 
+
+export type BaseLogoutConfiguration =  {
+  redirectUrl: string;
+  serviceConfiguration: ServiceConfiguration;
+  additionalParameters?: BuiltInRegistrationParameters & { [name: string]: string };
+  dangerouslyAllowInsecureHttpRequests?: boolean;
+  customHeaders?: CustomHeaders;
+};
+
+export type LogoutConfiguration =  {
+  idTokenHint: string;
+};
+
+
 export function prefetchConfiguration(config: AuthConfiguration): Promise<void>;
 
 export function register(config: RegistrationConfiguration): Promise<RegistrationResponse>;
@@ -121,6 +136,9 @@ export function revoke(
   config: BaseAuthConfiguration,
   revokeConfig: RevokeConfiguration
 ): Promise<void>;
+
+export function logout(config: BaseLogoutConfiguration, logoutConfig: LogoutConfiguration): Promise<void>;
+
 
 // https://tools.ietf.org/html/rfc6749#section-4.1.2.1
 type OAuthAuthorizationErrorCode =

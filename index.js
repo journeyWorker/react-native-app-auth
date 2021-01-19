@@ -231,6 +231,37 @@ export const refresh = (
   return RNAppAuth.refresh(...nativeMethodArguments);
 };
 
+
+export const logout = (
+  {
+    issuer,
+    redirectUrl,
+    additionalParameters= {},
+    serviceConfiguration,
+    clientAuthMethod = 'basic',
+    dangerouslyAllowInsecureHttpRequests = false,
+    customHeaders,
+  },
+  { idTokenHint }
+) => {
+  const nativeMethodArguments = [
+    issuer,
+    redirectUrl,
+    idTokenHint,
+    additionalParameters,
+    serviceConfiguration,
+  ];
+
+  if (Platform.OS === 'android') {
+    nativeMethodArguments.push(clientAuthMethod);
+    nativeMethodArguments.push(dangerouslyAllowInsecureHttpRequests);
+    nativeMethodArguments.push(customHeaders);
+  }
+
+  return RNAppAuth.logout(...nativeMethodArguments);
+};
+
+
 export const revoke = async (
   { clientId, issuer, serviceConfiguration, clientSecret },
   { tokenToRevoke, sendClientId = false, includeBasicAuth = false }
