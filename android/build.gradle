@@ -58,7 +58,6 @@ repositories {
 dependencies {
     //noinspection GradleDynamicVersion
     implementation 'com.facebook.react:react-native:+'  // From node_modules
-    releaseImplementation name: 'appauth-release', ext: 'aar'
-    debugImplementation name: 'appauth-debug', ext: 'aar'
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
     implementation 'androidx.browser:browser:1.2.0'
 }

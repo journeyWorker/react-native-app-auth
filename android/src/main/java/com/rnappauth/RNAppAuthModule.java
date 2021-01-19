@@ -378,9 +378,9 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
   public void logout(
     String issuer,
     final String redirectUrl,
+    final String idTokenHint,
     final ReadableMap additionalParameters,
     final ReadableMap serviceConfiguration,
-    final String idTokenHint,
     final String clientAuthMethod,
     final boolean dangerouslyAllowInsecureHttpRequests,
     final ReadableMap headers,

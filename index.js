@@ -24,11 +24,18 @@ const validateIssuerOrServiceConfigurationRevocationEndpoint = (issuer, serviceC
       (serviceConfiguration && typeof serviceConfiguration.revocationEndpoint === 'string'),
     'Config error: you must provide either an issuer or a revocation endpoint'
   );
+  const validateIssuerOrServiceConfigurationEndSessionpoint = (issuer, serviceConfiguration) =>
+  invariant(
+    typeof issuer === 'string' ||
+      (serviceConfiguration && typeof serviceConfiguration.endSessionEndpoint === 'string'),
+    'Config error: you must provide either an issuer or a endSessionEndpoint endpoint'
+  );
 const validateClientId = clientId =>
   invariant(typeof clientId === 'string', 'Config error: clientId must be a string');
 const validateRedirectUrl = redirectUrl =>
   invariant(typeof redirectUrl === 'string', 'Config error: redirectUrl must be a string');
-
+const validateIdTokenHint = idTokenHint =>
+  invariant(typeof idTokenHint === 'string', 'Config error: idTokenHint must be a string');
 const validateHeaders = headers => {
   if (!headers) {
     return;
@@ -244,6 +251,10 @@ export const logout = (
   },
   { idTokenHint }
 ) => {
+  validateIssuerOrServiceConfigurationEndSessionpoint(issuer, serviceConfiguration);
+  validateIdTokenHint(idTokenHint);
+  validateRedirectUrl(redirectUrl);
+
   const nativeMethodArguments = [
     issuer,
     redirectUrl,
