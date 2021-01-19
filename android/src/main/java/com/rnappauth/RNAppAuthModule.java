@@ -47,6 +47,11 @@ import net.openid.appauth.TokenRequest;
 import net.openid.appauth.connectivity.ConnectionBuilder;
 import net.openid.appauth.connectivity.DefaultConnectionBuilder;
 
+
+import net.openid.appauth.EndSessionRequest;
+import net.openid.appauth.EndSessionResponse;
+
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -284,10 +289,6 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
                     builder
             );
         }
-
-
-
-
     }
 
     @ReactMethod
@@ -372,6 +373,72 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         }
 
     }
+
+  @ReactMethod
+  public void logout(
+    String issuer,
+    final String redirectUrl,
+    final ReadableMap additionalParameters,
+    final ReadableMap serviceConfiguration,
+    final String idTokenHint,
+    final String clientAuthMethod,
+    final boolean dangerouslyAllowInsecureHttpRequests,
+    final ReadableMap headers,
+    final Promise promise
+  ) {
+    this.parseHeaderMap(headers);
+    final ConnectionBuilder builder = createConnectionBuilder(dangerouslyAllowInsecureHttpRequests, this.authorizationRequestHeaders);
+    final AppAuthConfiguration appAuthConfiguration = this.createAppAuthConfiguration(builder);
+    final HashMap<String, String> additionalParametersMap = MapUtil.readableMapToHashMap(additionalParameters);
+
+    // store args in private fields for later use in onActivityResult handler
+    this.promise = promise;
+    this.dangerouslyAllowInsecureHttpRequests = dangerouslyAllowInsecureHttpRequests;
+    this.additionalParametersMap = additionalParametersMap;
+    this.clientAuthMethod = clientAuthMethod;
+
+    // when serviceConfiguration is provided, we don't need to hit up the OpenID well-known id endpoint
+    if (serviceConfiguration != null || hasServiceConfiguration(issuer)) {
+      try {
+        final AuthorizationServiceConfiguration serviceConfig = hasServiceConfiguration(issuer) ? getServiceConfiguration(issuer) : createAuthorizationServiceConfiguration(serviceConfiguration);
+        logoutWithConfiguration(
+          serviceConfig,
+          appAuthConfiguration,
+          redirectUrl,
+          idTokenHint,
+          additionalParametersMap
+        );
+      } catch (ActivityNotFoundException e) {
+        promise.reject("browser_not_found", e.getMessage());
+      } catch (Exception e) {
+        promise.reject("logout_failed", e.getMessage());
+      }
+    } else {
+      final Uri issuerUri = Uri.parse(issuer);
+      AuthorizationServiceConfiguration.fetchFromUrl(
+        buildConfigurationUriFromIssuer(issuerUri),
+        new AuthorizationServiceConfiguration.RetrieveConfigurationCallback() {
+          public void onFetchConfigurationCompleted(
+            @Nullable AuthorizationServiceConfiguration fetchedConfiguration,
+            @Nullable AuthorizationException ex) {
+            if (ex != null) {
+              promise.reject("service_configuration_fetch_error", ex.getLocalizedMessage(), ex);
+              return;
+            }
+            setServiceConfiguration(issuer, fetchedConfiguration);
+            logoutWithConfiguration(
+              fetchedConfiguration,
+              appAuthConfiguration,
+              redirectUrl,
+              idTokenHint,
+              additionalParametersMap
+            );
+          }
+        },
+        builder
+      );
+    }
+  }
 
     /*
      * Called when the OAuth browser activity completes
@@ -482,7 +549,7 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         if (tokenEndpointAuthMethod != null) {
             registrationRequestBuilder.setTokenEndpointAuthenticationMethod(tokenEndpointAuthMethod);
         }
-        
+
         RegistrationRequest registrationRequest = registrationRequestBuilder.build();
 
         AuthorizationService.RegistrationResponseCallback registrationResponseCallback = new AuthorizationService.RegistrationResponseCallback() {
@@ -575,6 +642,43 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
             authService.performAuthorizationRequest(authRequest, pendingIntent);
         }
     }
+
+
+  /*
+   * logout user with the provided configuration
+   */
+  private void logoutWithConfiguration(
+    final AuthorizationServiceConfiguration serviceConfiguration,
+    final AppAuthConfiguration appAuthConfiguration,
+    final String redirectUrl,
+    final String idTokenHint,
+    final Map<String, String> additionalParametersMap
+  ) {
+
+    final Context context = this.reactContext;
+    final Activity currentActivity = getCurrentActivity();
+
+    EndSessionRequest.Builder endSessionRequestBuilder =
+      new EndSessionRequest.Builder(
+        serviceConfiguration,
+        idTokenHint,
+        Uri.parse(redirectUrl)
+      );
+
+    EndSessionRequest endSessionRequest = endSessionRequestBuilder.build();
+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+      AuthorizationService authService = new AuthorizationService(context, appAuthConfiguration);
+      Intent authIntent = authService.getEndSessionRequestIntent(endSessionRequest);
+
+      currentActivity.startActivityForResult(authIntent, 0);
+    } else {
+      AuthorizationService authService = new AuthorizationService(currentActivity, appAuthConfiguration);
+      PendingIntent pendingIntent = currentActivity.createPendingResult(0, new Intent(), 0);
+
+      authService.performEndSessionRequest(endSessionRequest, pendingIntent);
+    }
+  }
 
     /*
      * Refresh authentication token with the provided configuration
