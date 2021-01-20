@@ -65,6 +65,11 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
 
     public static final String CUSTOM_TAB_PACKAGE_NAME = "com.android.chrome";
 
+    private static class RequestCode {
+      static final int AUTHORIZATION = 1;
+      static final int END_SESSION = 2;
+    }
+
     private final ReactApplicationContext reactContext;
     private Promise promise;
     private boolean dangerouslyAllowInsecureHttpRequests;
@@ -77,7 +82,6 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
     private String clientSecret;
     private final ConcurrentHashMap<String, AuthorizationServiceConfiguration> mServiceConfigurations = new ConcurrentHashMap<>();
     private boolean isPrefetched = false;
-    private String requestType;
 
     public RNAppAuthModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -243,7 +247,6 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         this.clientSecret = clientSecret;
         this.clientAuthMethod = clientAuthMethod;
         this.skipCodeExchange = skipCodeExchange;
-        this.requestType = "authorize";
 
         // when serviceConfiguration is provided, we don't need to hit up the OpenID well-known id endpoint
         if (serviceConfiguration != null || hasServiceConfiguration(issuer)) {
@@ -403,7 +406,6 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
     this.dangerouslyAllowInsecureHttpRequests = dangerouslyAllowInsecureHttpRequests;
     this.additionalParametersMap = additionalParametersMap;
     this.clientAuthMethod = clientAuthMethod;
-    this.requestType = "endSession";
 
     // when serviceConfiguration is provided, we don't need to hit up the OpenID well-known id endpoint
     if (serviceConfiguration != null || hasServiceConfiguration(issuer)) {
@@ -453,17 +455,15 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
      */
     @Override
     public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
-        if (this.requestType.equals("authorize")) {
+        if (requestCode == RequestCode.AUTHORIZATION) {
           onAuthorizeRequestActivityResult(activity, requestCode, resultCode, data);
         }
-        if (this.requestType.equals("endSession")) {
+        if (requestCode == RequestCode.END_SESSION) {
           onEndSessionRequestActivityResult(activity, requestCode, resultCode, data);
         }
     }
 
   private void onEndSessionRequestActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
-
-    if (requestCode == 0) {
       if (data == null) {
         if (promise != null) {
           promise.reject("endSession_error", "Data intent is null" );
@@ -486,12 +486,9 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         promise.resolve(map);
       }
       return;
-    }
   }
 
   private void onAuthorizeRequestActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {
-
-    if (requestCode == 0) {
       if (data == null) {
         if (promise != null) {
           promise.reject("authentication_error", "Data intent is null" );
@@ -551,8 +548,6 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
       } else {
         authService.performTokenRequest(tokenRequest, tokenResponseCallback);
       }
-
-    }
   }
 
     /*
@@ -595,7 +590,7 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
         if (tokenEndpointAuthMethod != null) {
             registrationRequestBuilder.setTokenEndpointAuthenticationMethod(tokenEndpointAuthMethod);
         }
-        
+
         RegistrationRequest registrationRequest = registrationRequestBuilder.build();
 
         AuthorizationService.RegistrationResponseCallback registrationResponseCallback = new AuthorizationService.RegistrationResponseCallback() {
@@ -680,10 +675,10 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
             AuthorizationService authService = new AuthorizationService(context, appAuthConfiguration);
             Intent authIntent = authService.getAuthorizationRequestIntent(authRequest);
 
-            currentActivity.startActivityForResult(authIntent, 0);
+            currentActivity.startActivityForResult(authIntent, RequestCode.AUTHORIZATION);
         } else {
             AuthorizationService authService = new AuthorizationService(currentActivity, appAuthConfiguration);
-            PendingIntent pendingIntent = currentActivity.createPendingResult(0, new Intent(), 0);
+            PendingIntent pendingIntent = currentActivity.createPendingResult(RequestCode.AUTHORIZATION, new Intent(), 0);
 
             authService.performAuthorizationRequest(authRequest, pendingIntent);
         }
@@ -717,10 +712,10 @@ public class RNAppAuthModule extends ReactContextBaseJavaModule implements Activ
       AuthorizationService authService = new AuthorizationService(context, appAuthConfiguration);
       Intent authIntent = authService.getEndSessionRequestIntent(endSessionRequest);
 
-      currentActivity.startActivityForResult(authIntent, 0);
+      currentActivity.startActivityForResult(authIntent,  RequestCode.END_SESSION);
     } else {
       AuthorizationService authService = new AuthorizationService(currentActivity, appAuthConfiguration);
-      PendingIntent pendingIntent = currentActivity.createPendingResult(0, new Intent(), 0);
+      PendingIntent pendingIntent = currentActivity.createPendingResult( RequestCode.END_SESSION, new Intent(), 0);
 
       authService.performEndSessionRequest(endSessionRequest, pendingIntent);
     }
