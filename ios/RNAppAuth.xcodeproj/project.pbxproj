@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 46;
+	objectVersion = 52;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -28,8 +28,10 @@
 		19C8EE5020E3796B00C4D522 /* RNAppAuthAuthorizationFlowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNAppAuthAuthorizationFlowManager.h; sourceTree = "<group>"; };
 		B3E7B5881CC2AC0600A0062D /* RNAppAuth.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RNAppAuth.h; sourceTree = "<group>"; };
 		B3E7B5891CC2AC0600A0062D /* RNAppAuth.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RNAppAuth.m; sourceTree = "<group>"; };
-		CE90819E25B6AFB400209588 /* OIDExternalUserAgentEphemeral.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OIDExternalUserAgentEphemeral.h; sourceTree = "<group>"; };
-		CE90819F25B6AFB400209588 /* OIDExternalUserAgentEphemeral.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OIDExternalUserAgentEphemeral.m; sourceTree = "<group>"; };
+		CE9086C025B8603300209588 /* OIDExternalUserAgentIOSEphemeral.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OIDExternalUserAgentIOSEphemeral.h; sourceTree = "<group>"; };
+		CE9086C125B8603300209588 /* OIDExternalUserAgentIOSSafariViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OIDExternalUserAgentIOSSafariViewController.h; sourceTree = "<group>"; };
+		CE9086C225B8603300209588 /* OIDExternalUserAgentIOSSafariViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OIDExternalUserAgentIOSSafariViewController.m; sourceTree = "<group>"; };
+		CE9086C325B8603300209588 /* OIDExternalUserAgentIOSEphemeral.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OIDExternalUserAgentIOSEphemeral.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,8 +56,10 @@
 		58B511D21A9E6C8500147676 = {
 			isa = PBXGroup;
 			children = (
-				CE90819E25B6AFB400209588 /* OIDExternalUserAgentEphemeral.h */,
-				CE90819F25B6AFB400209588 /* OIDExternalUserAgentEphemeral.m */,
+				CE9086C025B8603300209588 /* OIDExternalUserAgentIOSEphemeral.h */,
+				CE9086C325B8603300209588 /* OIDExternalUserAgentIOSEphemeral.m */,
+				CE9086C125B8603300209588 /* OIDExternalUserAgentIOSSafariViewController.h */,
+				CE9086C225B8603300209588 /* OIDExternalUserAgentIOSSafariViewController.m */,
 				B3E7B5881CC2AC0600A0062D /* RNAppAuth.h */,
 				B3E7B5891CC2AC0600A0062D /* RNAppAuth.m */,
 				19C8EE5020E3796B00C4D522 /* RNAppAuthAuthorizationFlowManager.h */,

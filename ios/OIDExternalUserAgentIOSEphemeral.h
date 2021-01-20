@@ -1,4 +1,4 @@
-/*! @file OIDExternalUserAgentEphemeral.h
+/*! @file OIDExternalUserAgentIOSEphemeral.h
     @brief AppAuth iOS SDK
     @copyright
         Copyright 2016 Google Inc. All Rights Reserved.
@@ -23,6 +23,7 @@
 #import <UIKit/UIKit.h>
 
 #import "OIDExternalUserAgent.h"
+#import "OIDExternalUserAgentIOS.h"
 
 @class SFSafariViewController;
 
@@ -32,7 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
         depending on the version of iOS to present the request.
  */
 API_UNAVAILABLE(macCatalyst)
-@interface OIDExternalUserAgentEphemeral : NSObject<OIDExternalUserAgent>
+@interface OIDExternalUserAgentIOSEphemeral : NSObject<OIDExternalUserAgent>
 
 - (nullable instancetype)init API_AVAILABLE(ios(11))
     __deprecated_msg("This method will not work on iOS 13, use "

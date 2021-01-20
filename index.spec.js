@@ -6,6 +6,7 @@ jest.mock('react-native', () => ({
       register: jest.fn(),
       authorize: jest.fn(),
       refresh: jest.fn(),
+      sessionEnd: jest.fn(),
     },
   },
   Platform: {
@@ -17,6 +18,7 @@ describe('AppAuth', () => {
   let mockRegister;
   let mockAuthorize;
   let mockRefresh;
+  let mockSessionEnd;
 
   beforeAll(() => {
     mockRegister = require('react-native').NativeModules.RNAppAuth.register;
@@ -27,6 +29,9 @@ describe('AppAuth', () => {
 
     mockRefresh = require('react-native').NativeModules.RNAppAuth.refresh;
     mockRefresh.mockReturnValue('REFRESHED');
+
+    mockRefresh = require('react-native').NativeModules.RNAppAuth.sessionEnd;
+    mockRefresh.mockReturnValue('SESSION_ENDED');
   });
 
   const config = {
@@ -40,6 +45,8 @@ describe('AppAuth', () => {
     scopes: ['my-scope'],
     useNonce: true,
     usePKCE: true,
+    preferEphemeralWebSession: true,
+    preferSafariViewController: true,
     customHeaders: null,
     skipCodeExchange: false,
   };
@@ -60,6 +67,7 @@ describe('AppAuth', () => {
       mockRegister.mockReset();
       mockAuthorize.mockReset();
       mockRefresh.mockReset();
+      mockSessionEnd.mockReset();
     });
 
     it('throws an error when issuer is not a string and serviceConfiguration is not passed', () => {
@@ -282,6 +290,7 @@ describe('AppAuth', () => {
       mockRegister.mockReset();
       mockAuthorize.mockReset();
       mockRefresh.mockReset();
+      mockSessionEnd.mockReset();
     });
 
     it('throws an error when issuer is not a string and serviceConfiguration is not passed', () => {
@@ -383,11 +392,13 @@ describe('AppAuth', () => {
         config.serviceConfiguration,
         config.skipCodeExchange,
         config.useNonce,
-        config.usePKCE
+        config.usePKCE,
+        config.preferEphemeralWebSession,
+        config.preferSafariViewController,
       );
     });
 
-    it('calls the native wrapper with the default value `false`, `true`, `true`', () => {
+    it('calls the native wrapper with the default value `false`, `true`, `true`, `false`, `false`', () => {
       authorize({
         issuer: 'test-issuer',
         redirectUrl: 'test-redirectUrl',
@@ -396,6 +407,8 @@ describe('AppAuth', () => {
         customHeaders: null,
         additionalParameters: null,
         serviceConfiguration: null,
+        preferEphemeralWebSession: null,
+        preferSafariViewController: null,
         scopes: ['openid'],
       });
       expect(mockAuthorize).toHaveBeenCalledWith(
@@ -408,7 +421,9 @@ describe('AppAuth', () => {
         null,
         false,
         true,
-        true
+        true,
+        false,
+        false
       );
     });
 
@@ -510,6 +525,7 @@ describe('AppAuth', () => {
       mockRegister.mockReset();
       mockAuthorize.mockReset();
       mockRefresh.mockReset();
+      mockSessionEnd.mockReset();
     });
 
     it('throws an error when issuer is not a string and serviceConfiguration is not passed', () => {

@@ -72,7 +72,8 @@ export type AuthConfiguration = BaseAuthConfiguration & {
   customHeaders?: CustomHeaders;
   useNonce?: boolean;
   usePKCE?: boolean;
-  useEphemeralWebSession?: boolean;
+  preferEphemeralWebSession?: boolean;
+  preferSafariViewController?: boolean;
   warmAndPrefetchChrome?: boolean;
   skipCodeExchange?: boolean;
 };
@@ -112,7 +113,7 @@ export interface RefreshConfiguration {
 export type BaseEndSessionConfiguration =  {
   redirectUrl: string;
   serviceConfiguration: ServiceConfiguration;
-  useEphemeralWebSession?: boolean;
+  preferSafariViewController?: boolean;
   additionalParameters?: BuiltInRegistrationParameters & { [name: string]: string };
   dangerouslyAllowInsecureHttpRequests?: boolean;
   customHeaders?: CustomHeaders;

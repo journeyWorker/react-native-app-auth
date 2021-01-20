@@ -8,7 +8,8 @@
 #import <React/RCTConvert.h>
 #import "RNAppAuthAuthorizationFlowManager.h"
 
-#import "OIDExternalUserAgentEphemeral.h"
+#import "OIDExternalUserAgentIOSEphemeral.h"
+#import "OIDExternalUserAgentIOSSafariViewController.h"
 
 @interface RNAppAuth()<RNAppAuthAuthorizationFlowManagerDelegate> {
     id<OIDExternalUserAgentSession> _currentSession;
@@ -93,7 +94,8 @@ RCT_REMAP_METHOD(authorize,
                  skipCodeExchange: (BOOL) skipCodeExchange
                  useNonce: (BOOL *) useNonce
                  usePKCE: (BOOL *) usePKCE
-                 useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+                 preferEphemeralWebSession: (BOOL *) preferEphemeralWebSession
+                 preferSafariViewController: (BOOL *) preferSafariViewController
                  resolve: (RCTPromiseResolveBlock) resolve
                  reject: (RCTPromiseRejectBlock)  reject)
 {
@@ -107,7 +109,8 @@ RCT_REMAP_METHOD(authorize,
                                   scopes: scopes
                                 useNonce: useNonce
                                  usePKCE: usePKCE
-                  useEphemeralWebSession: useEphemeralWebSession
+               preferEphemeralWebSession: preferEphemeralWebSession
+              preferSafariViewController: preferSafariViewController
                     additionalParameters: additionalParameters
                     skipCodeExchange: skipCodeExchange
                                  resolve: resolve
@@ -126,7 +129,8 @@ RCT_REMAP_METHOD(authorize,
                                       scopes: scopes
                                     useNonce: useNonce
                                      usePKCE: usePKCE
-                      useEphemeralWebSession: useEphemeralWebSession
+                   preferEphemeralWebSession: preferEphemeralWebSession
+                  preferSafariViewController: preferSafariViewController
                         additionalParameters: additionalParameters
                             skipCodeExchange: skipCodeExchange
                                      resolve: resolve
@@ -187,7 +191,7 @@ RCT_REMAP_METHOD(endSession,
                  idTokenHint: (NSString *) idTokenHint
                  additionalParameters: (NSDictionary *_Nullable) additionalParameters
                  serviceConfiguration: (NSDictionary *) serviceConfiguration
-                 useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+                 preferSafariViewController: (BOOL *) preferSafariViewController
                  resolve: (RCTPromiseResolveBlock) resolve
                  reject: (RCTPromiseRejectBlock)  reject)
 {
@@ -197,10 +201,10 @@ RCT_REMAP_METHOD(endSession,
         [self endSessionWithConfiguration: configuration
                               redirectUrl: redirectUrl
                               idTokenHint: idTokenHint
-                   useEphemeralWebSession: useEphemeralWebSession
+               preferSafariViewController: preferSafariViewController
                      additionalParameters: additionalParameters
-                                  resolve:(RCTPromiseResolveBlock) resolve
-                                   reject: (RCTPromiseRejectBlock)  reject];
+                                  resolve: resolve
+                                   reject: reject];
     } else {
         [OIDAuthorizationService discoverServiceConfigurationForIssuer:[NSURL URLWithString:issuer]
                                                             completion:^(OIDServiceConfiguration *_Nullable configuration, NSError *_Nullable error) {
@@ -209,13 +213,13 @@ RCT_REMAP_METHOD(endSession,
                 return;
             }
             
-            [self endSessionWithConfiguration: (OIDServiceConfiguration *)configuration
-                                  redirectUrl: (NSString *) redirectUrl
-                                  idTokenHint: (NSString *) idTokenHint
-                       useEphemeralWebSession: (BOOL *) useEphemeralWebSession
-                         additionalParameters: (NSDictionary *_Nullable) additionalParameters
-                                      resolve:(RCTPromiseResolveBlock) resolve
-                                       reject: (RCTPromiseRejectBlock)  reject];
+            [self endSessionWithConfiguration: configuration
+                                  redirectUrl: redirectUrl
+                                  idTokenHint: idTokenHint
+                   preferSafariViewController: preferSafariViewController
+                         additionalParameters: additionalParameters
+                                      resolve: resolve
+                                       reject: reject];
             
         }];
     }
@@ -312,7 +316,8 @@ RCT_REMAP_METHOD(endSession,
                             scopes: (NSArray *) scopes
                           useNonce: (BOOL *) useNonce
                            usePKCE: (BOOL *) usePKCE
-            useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+         preferEphemeralWebSession: (BOOL *) preferEphemeralWebSession
+        preferSafariViewController: (BOOL *) preferSafariViewController
               additionalParameters: (NSDictionary *_Nullable) additionalParameters
               skipCodeExchange: (BOOL) skipCodeExchange
                            resolve: (RCTPromiseResolveBlock) resolve
@@ -376,9 +381,12 @@ RCT_REMAP_METHOD(endSession,
         externalUserAgent = [[OIDExternalUserAgentCatalyst alloc]
                              initWithPresentingViewController:presentingViewController];
 #else // TARGET_OS_MACCATALYST
-        if(useEphemeralWebSession) {
-            externalUserAgent = [[OIDExternalUserAgentEphemeral alloc] initWithPresentingViewController:presentingViewController];
-        } else {
+        if(preferEphemeralWebSession) {
+            externalUserAgent = [[OIDExternalUserAgentIOSEphemeral alloc] initWithPresentingViewController:presentingViewController];
+        } else if(preferSafariViewController) {
+            externalUserAgent = [[OIDExternalUserAgentIOSSafariViewController alloc] initWithPresentingViewController:presentingViewController];
+        }
+        else {
             externalUserAgent = [[OIDExternalUserAgentIOS alloc] initWithPresentingViewController:presentingViewController];
         }
 #endif // TARGET_OS_MACCATALYST
@@ -446,7 +454,7 @@ RCT_REMAP_METHOD(endSession,
 - (void)endSessionWithConfiguration: (OIDServiceConfiguration *)configuration
                         redirectUrl: (NSString *) redirectUrl
                         idTokenHint: (NSString *) idTokenHint
-             useEphemeralWebSession: (BOOL *) useEphemeralWebSession
+         preferSafariViewController: (BOOL *) preferSafariViewController
                additionalParameters: (NSDictionary *_Nullable) additionalParameters
                             resolve:(RCTPromiseResolveBlock) resolve
                              reject: (RCTPromiseRejectBlock)  reject {
@@ -482,27 +490,26 @@ RCT_REMAP_METHOD(endSession,
     externalUserAgent = [[OIDExternalUserAgentCatalyst alloc]
                          initWithPresentingViewController:presentingViewController];
 #else // TARGET_OS_MACCATALYST
-    if(useEphemeralWebSession) {
-        externalUserAgent = [[OIDExternalUserAgentEphemeral alloc] initWithPresentingViewController:presentingViewController];
+    if(preferSafariViewController) {
+        externalUserAgent = [[OIDExternalUserAgentIOSSafariViewController alloc] initWithPresentingViewController:presentingViewController];
     } else {
         externalUserAgent = [[OIDExternalUserAgentIOS alloc] initWithPresentingViewController:presentingViewController];
     }
 #endif // TARGET_OS_MACCATALYST
     
-    _currentSession =  [OIDAuthorizationService presentEndSessionRequest:request                                                                        externalUserAgent:externalUserAgent
+    _currentSession =  [OIDAuthorizationService presentEndSessionRequest:request                                                                                                                     externalUserAgent:externalUserAgent
                                                                 callback:^(OIDEndSessionResponse * _Nullable endSessionResponse, NSError * _Nullable error) {
-        
-        typeof(self) strongSelf = weakSelf;
-        strongSelf->_currentSession = nil;
-        [UIApplication.sharedApplication endBackgroundTask:taskId];
-        taskId = UIBackgroundTaskInvalid;
-        if (endSessionResponse) {
-            resolve([self formatSessionEndResponse:endSessionResponse]);
-        } else {
-            reject([self getErrorCode: error defaultCode:@"session_end_failed"],
-                   [error localizedDescription], error);
-        }
-    }];
+                                                                typeof(self) strongSelf = weakSelf;
+                                                                strongSelf->_currentSession = nil;
+                                                                [UIApplication.sharedApplication endBackgroundTask:taskId];
+                                                                taskId = UIBackgroundTaskInvalid;
+                                                                if (endSessionResponse) {
+                                                                    resolve([self formatSessionEndResponse:endSessionResponse]);
+                                                                } else {
+                                                                    reject([self getErrorCode: error defaultCode:@"session_end_failed"],
+                                                                           [error localizedDescription], error);
+                                                                }
+                                                            }];
 }
 
 

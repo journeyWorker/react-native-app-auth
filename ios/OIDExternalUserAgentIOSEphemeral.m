@@ -1,4 +1,4 @@
-/*! @file OIDExternalUserAgentEphemeral.m
+/*! @file OIDExternalUserAgentIOSEphemeral.m
     @brief AppAuth iOS SDK
     @copyright
         Copyright 2016 Google Inc. All Rights Reserved.
@@ -20,7 +20,7 @@
 
 #if TARGET_OS_IOS || TARGET_OS_MACCATALYST
 
-#import "OIDExternalUserAgentEphemeral.h"
+#import "OIDExternalUserAgentIOSEphemeral.h"
 
 #import <SafariServices/SafariServices.h>
 #import <AuthenticationServices/AuthenticationServices.h>
@@ -40,17 +40,17 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wpartial-availability"
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 130000
-@interface OIDExternalUserAgentEphemeral ()<SFSafariViewControllerDelegate, ASWebAuthenticationPresentationContextProviding,
+@interface OIDExternalUserAgentIOSEphemeral ()<SFSafariViewControllerDelegate, ASWebAuthenticationPresentationContextProviding,
 UIAdaptivePresentationControllerDelegate
 >
 @end
 #else
-@interface OIDExternalUserAgentEphemeral ()<SFSafariViewControllerDelegate, UIAdaptivePresentationControllerDelegate>
+@interface OIDExternalUserAgentIOSEphemeral ()<SFSafariViewControllerDelegate, UIAdaptivePresentationControllerDelegate>
 @end
 #endif
 #pragma clang diagnostic pop
 
-@implementation OIDExternalUserAgentEphemeral {
+@implementation OIDExternalUserAgentIOSEphemeral {
   UIViewController *_presentingViewController;
 
   BOOL _externalUserAgentFlowInProgress;
@@ -100,14 +100,14 @@ UIAdaptivePresentationControllerDelegate
   if (@available(iOS 12.0, *)) {
     // ASWebAuthenticationSession doesn't work with guided access (rdar://40809553)
     if (!UIAccessibilityIsGuidedAccessEnabled()) {
-      __weak OIDExternalUserAgentEphemeral *weakSelf = self;
+      __weak OIDExternalUserAgentIOSEphemeral *weakSelf = self;
       NSString *redirectScheme = request.redirectScheme;
       ASWebAuthenticationSession *authenticationVC =
           [[ASWebAuthenticationSession alloc] initWithURL:requestURL
                                         callbackURLScheme:redirectScheme
                                         completionHandler:^(NSURL * _Nullable callbackURL,
                                                             NSError * _Nullable error) {
-        __strong OIDExternalUserAgentEphemeral *strongSelf = weakSelf;
+        __strong OIDExternalUserAgentIOSEphemeral *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
         }
@@ -140,14 +140,14 @@ UIAdaptivePresentationControllerDelegate
   if (@available(iOS 11.0, *)) {
     // SFAuthenticationSession doesn't work with guided access (rdar://40809553)
     if (!openedUserAgent && !UIAccessibilityIsGuidedAccessEnabled()) {
-      __weak OIDExternalUserAgentEphemeral *weakSelf = self;
+      __weak OIDExternalUserAgentIOSEphemeral *weakSelf = self;
       NSString *redirectScheme = request.redirectScheme;
       SFAuthenticationSession *authenticationVC =
           [[SFAuthenticationSession alloc] initWithURL:requestURL
                                      callbackURLScheme:redirectScheme
                                      completionHandler:^(NSURL * _Nullable callbackURL,
                                                          NSError * _Nullable error) {
-        __strong OIDExternalUserAgentEphemeral *strongSelf = weakSelf;
+        __strong OIDExternalUserAgentIOSEphemeral *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
         }

@@ -157,7 +157,8 @@ export const authorize = ({
   scopes,
   useNonce = true,
   usePKCE = true,
-  useEphemeralWebSession = false,
+  preferEphemeralWebSession = false,
+  preferSafariViewController = false,
   additionalParameters,
   serviceConfiguration,
   clientAuthMethod = 'basic',
@@ -192,7 +193,8 @@ export const authorize = ({
   if (Platform.OS === 'ios') {
     nativeMethodArguments.push(useNonce);
     nativeMethodArguments.push(usePKCE);
-    nativeMethodArguments.push(useEphemeralWebSession);
+    nativeMethodArguments.push(preferEphemeralWebSession);
+    nativeMethodArguments.push(preferSafariViewController);
   }
 
   return RNAppAuth.authorize(...nativeMethodArguments);
@@ -250,7 +252,7 @@ export const endSession = (
     clientAuthMethod = 'basic',
     dangerouslyAllowInsecureHttpRequests = false,
     customHeaders,
-    useEphemeralWebSession = false,
+    preferSafariViewController = false,
   },
   { idTokenHint }
 ) => {
@@ -274,7 +276,7 @@ export const endSession = (
 
 
   if (Platform.OS === 'ios') {
-    nativeMethodArguments.push(useEphemeralWebSession);
+    nativeMethodArguments.push(preferSafariViewController);
   }
 
 
