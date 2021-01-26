@@ -3,6 +3,7 @@ export interface ServiceConfiguration {
   tokenEndpoint: string;
   revocationEndpoint?: string;
   registrationEndpoint?: string;
+  sessionEndEndpoint?: string;
 }
 
 export type BaseConfiguration =
@@ -71,6 +72,8 @@ export type AuthConfiguration = BaseAuthConfiguration & {
   customHeaders?: CustomHeaders;
   useNonce?: boolean;
   usePKCE?: boolean;
+  preferEphemeralWebSession?: boolean;
+  preferSafariViewController?: boolean;
   warmAndPrefetchChrome?: boolean;
   skipCodeExchange?: boolean;
 };
@@ -106,6 +109,21 @@ export interface RefreshConfiguration {
   refreshToken: string;
 }
 
+
+export type BaseEndSessionConfiguration =  {
+  redirectUrl: string;
+  serviceConfiguration: ServiceConfiguration;
+  preferSafariViewController?: boolean;
+  additionalParameters?: BuiltInRegistrationParameters & { [name: string]: string };
+  dangerouslyAllowInsecureHttpRequests?: boolean;
+  customHeaders?: CustomHeaders;
+};
+
+export type EndSessionConfiguration =  {
+  idTokenHint: string;
+};
+
+
 export function prefetchConfiguration(config: AuthConfiguration): Promise<void>;
 
 export function register(config: RegistrationConfiguration): Promise<RegistrationResponse>;
@@ -121,6 +139,9 @@ export function revoke(
   config: BaseAuthConfiguration,
   revokeConfig: RevokeConfiguration
 ): Promise<void>;
+
+export function endSession(config: BaseEndSessionConfiguration, endSessionConfig: EndSessionConfiguration): Promise<void>;
+
 
 // https://tools.ietf.org/html/rfc6749#section-4.1.2.1
 type OAuthAuthorizationErrorCode =

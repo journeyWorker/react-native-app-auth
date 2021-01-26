@@ -24,11 +24,18 @@ const validateIssuerOrServiceConfigurationRevocationEndpoint = (issuer, serviceC
       (serviceConfiguration && typeof serviceConfiguration.revocationEndpoint === 'string'),
     'Config error: you must provide either an issuer or a revocation endpoint'
   );
+  const validateIssuerOrServiceConfigurationEndSessionpoint = (issuer, serviceConfiguration) =>
+  invariant(
+    typeof issuer === 'string' ||
+      (serviceConfiguration && typeof serviceConfiguration.endSessionEndpoint === 'string'),
+    'Config error: you must provide either an issuer or a endSessionEndpoint endpoint'
+  );
 const validateClientId = clientId =>
   invariant(typeof clientId === 'string', 'Config error: clientId must be a string');
 const validateRedirectUrl = redirectUrl =>
   invariant(typeof redirectUrl === 'string', 'Config error: redirectUrl must be a string');
-
+const validateIdTokenHint = idTokenHint =>
+  invariant(typeof idTokenHint === 'string', 'Config error: idTokenHint must be a string');
 const validateHeaders = headers => {
   if (!headers) {
     return;
@@ -150,6 +157,8 @@ export const authorize = ({
   scopes,
   useNonce = true,
   usePKCE = true,
+  preferEphemeralWebSession = false,
+  preferSafariViewController = false,
   additionalParameters,
   serviceConfiguration,
   clientAuthMethod = 'basic',
@@ -184,6 +193,8 @@ export const authorize = ({
   if (Platform.OS === 'ios') {
     nativeMethodArguments.push(useNonce);
     nativeMethodArguments.push(usePKCE);
+    nativeMethodArguments.push(preferEphemeralWebSession);
+    nativeMethodArguments.push(preferSafariViewController);
   }
 
   return RNAppAuth.authorize(...nativeMethodArguments);
@@ -230,6 +241,48 @@ export const refresh = (
 
   return RNAppAuth.refresh(...nativeMethodArguments);
 };
+
+
+export const endSession = (
+  {
+    issuer,
+    redirectUrl,
+    additionalParameters= {},
+    serviceConfiguration,
+    clientAuthMethod = 'basic',
+    dangerouslyAllowInsecureHttpRequests = false,
+    customHeaders,
+    preferSafariViewController = false,
+  },
+  { idTokenHint }
+) => {
+  validateIssuerOrServiceConfigurationEndSessionpoint(issuer, serviceConfiguration);
+  validateIdTokenHint(idTokenHint);
+  validateRedirectUrl(redirectUrl);
+
+  const nativeMethodArguments = [
+    issuer,
+    redirectUrl,
+    idTokenHint,
+    additionalParameters,
+    serviceConfiguration,
+  ];
+
+  if (Platform.OS === 'android') {
+    nativeMethodArguments.push(clientAuthMethod);
+    nativeMethodArguments.push(dangerouslyAllowInsecureHttpRequests);
+    nativeMethodArguments.push(customHeaders);
+  }
+
+
+  if (Platform.OS === 'ios') {
+    nativeMethodArguments.push(preferSafariViewController);
+  }
+
+
+  return RNAppAuth.endSession(...nativeMethodArguments);
+};
+
 
 export const revoke = async (
   { clientId, issuer, serviceConfiguration, clientSecret },
